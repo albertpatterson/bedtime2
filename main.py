@@ -1,6 +1,13 @@
 import tkinter as tk
-from main_window import MainWindow
+from apscheduler.schedulers.background import BackgroundScheduler
+from utils import getBedtime
+from bedtime_manager import BedtimeManager
 
+
+(hour, minute) = getBedtime()
 root = tk.Tk()
-MainWindow(root)
+scheduler = BackgroundScheduler(daemon=True)
+BedtimeManager(root, scheduler, hour, minute)
+scheduler.start()
 root.mainloop()
+scheduler.shutdown()

@@ -3,63 +3,22 @@ import json
 import os
 from tkinter.constants import TRUE
 from operator import itemgetter
-
-DEFAULT_BED_TIME = (0, 0)
-BEDTIME_DATA = './bedtime.json'
-
-
-def getBedtime():
-    if not os.path.exists(BEDTIME_DATA):
-        return DEFAULT_BED_TIME
-
-    with open(BEDTIME_DATA) as dataFile:
-        data = json.load(dataFile)
-        print(data)
-        bedtimeHours = data["bedtimeHours"]
-        bedtimeMinutes = data["bedtimeMinutes"]
-
-        validBedtime = not (bedtimeHours == None or bedtimeMinutes == None)
-        return (bedtimeHours, bedtimeMinutes) if validBedtime else DEFAULT_BED_TIME
-
-
-def setBedtime(bedtimeHours, bedtimeMinutes):
-    data = {"bedtimeHours": bedtimeHours, "bedtimeMinutes": bedtimeMinutes}
-    with open(BEDTIME_DATA, 'w+') as dataFile:
-        json.dump(data, dataFile)
-
-
-def getHour(hourStr):
-    hour = int(hourStr)
-    if(hour < 0 or hour > 23):
-        raise Exception("number is not a valid hour")
-
-    return hour
-
-
-def getMinute(minuteStr):
-    minute = int(minuteStr)
-    if(minute < 0 or minute > 59):
-        raise Exception("number is not a valid minute")
-
-    return minute
+from constants import *
+from utils import (getBedtime, setBedtime, getHour, getMinute)
 
 
 DEFAULT_CONFIG = {
     "font": ('Arial', 50),
-
-
 }
 
 DEFAULT_INPUT_CONFIG = {
     **DEFAULT_CONFIG,
 }
 
-
 DEFAULT_HOUR_INPUT_CONFIG = {
     ** DEFAULT_INPUT_CONFIG,
     **{"width": 2, },
 }
-
 
 DEFAULT_MINUTE_INPUT_CONFIG = {
     ** DEFAULT_INPUT_CONFIG,
@@ -134,7 +93,6 @@ class PaddedValidatedNumberInput(tk.Frame):
         self._validatedNumberInput.setValue(valueStr)
 
     def _handleFocusout(self, *args):
-        print('handle focus out')
         stringVal = self._validatedNumberInput.stringVar.get()
         stringValLen = len(stringVal)
         if stringValLen > 0 and stringValLen < self._numChars:
@@ -309,12 +267,13 @@ class TimeForm(tk.Frame):
 
 
 class MainWindow(tk.Frame):
-    def __init__(self, root):
+    def __init__(self, root, handleChange):
         super().__init__(root)
 
         self._getBedtime()
 
         self._root = root
+        self._handleChange = handleChange
         self._configureTopLevel()
         self._createContent()
 
@@ -340,6 +299,7 @@ class MainWindow(tk.Frame):
 
     def _updateBedtime(self, hours, minutes):
         setBedtime(hours, minutes)
+        self._handleChange(hours, minutes)
 
     def _addTimeInput(self):
         timeForm = TimeForm(self, self._bedtimeHours,
