@@ -78,24 +78,32 @@ class ValidatedNumberInput(tk.Frame):
         self._config = {**DEFAULT_MINUTE_INPUT_CONFIG, **config}
         self._createContent()
 
+    def setValue(self, valueStr):
+        if(self._validateInput(valueStr)):
+            self.stringVar.set(valueStr)
+            self._updateValue()
+
     def _updateValue(self, *args):
         stringVal = self.stringVar.get()
         self._handleChange(stringVal)
 
-    def _validateInput(self, valueStr, reason):
+    def _validateOnlyKeyInput(self, valueStr, reason):
         if(reason == 'key'):
-            if(valueStr == ''):
-                return True
-
-            try:
-                value = int(valueStr)
-                if(value < self._min or value > self._max):
-                    raise Exception("number is not within specific bounds")
-                return True
-            except Exception:
-                return False
+            return self._validateInput(valueStr)
 
         return True
+
+    def _validateInput(self, valueStr):
+        if(valueStr == ''):
+            return True
+
+        try:
+            value = int(valueStr)
+            if(value < self._min or value > self._max):
+                raise Exception("number is not within specific bounds")
+            return True
+        except Exception:
+            return False
 
     def _createContent(self):
 
@@ -106,7 +114,7 @@ class ValidatedNumberInput(tk.Frame):
 
         stringVar.trace("w", self._updateValue)
 
-        regIsValidInput = self._root.register(self._validateInput)
+        regIsValidInput = self._root.register(self._validateOnlyKeyInput)
         self.entry = tk.Entry(self, validate="all",
                               validatecommand=(regIsValidInput, '%P', '%V'), font=font, width=width, textvariable=stringVar)
 
@@ -121,6 +129,9 @@ class PaddedValidatedNumberInput(tk.Frame):
         self._numChars = numChars
         self._config = {**DEFAULT_MINUTE_INPUT_CONFIG, **config}
         self._createContent()
+
+    def setValue(self, valueStr):
+        self._validatedNumberInput.setValue(valueStr)
 
     def _handleFocusout(self, *args):
         print('handle focus out')
@@ -148,6 +159,9 @@ class HourInput(tk.Frame):
         self._root = root
         self._createContent()
 
+    def setValue(self, valueStr):
+        self._paddedValidatedNumberInput.setValue(valueStr)
+
     def _createContent(self):
         self._paddedValidatedNumberInput = PaddedValidatedNumberInput(
             self, **self._paddedValidatedNumberInputParams)
@@ -161,6 +175,9 @@ class MinuteInput(tk.Frame):
             value=minute, min=0, max=59, handleChange=handleChange, numChars=2, config=config)
         self._root = root
         self._createContent()
+
+    def setValue(self, valueStr):
+        self._paddedValidatedNumberInput.setValue(valueStr)
 
     def _createContent(self):
         self._paddedValidatedNumberInput = PaddedValidatedNumberInput(
@@ -179,6 +196,10 @@ class TimeInput(tk.Frame):
         self._createContent()
         self._runChangeHandler()
 
+    def setTime(self, hourStr, minuteStr):
+        self._hourInput.setValue(hourStr)
+        self._minuteInput.setValue(minuteStr)
+
     def _setHour(self, hour):
         self._hour = hour
         self._runChangeHandler()
@@ -191,23 +212,24 @@ class TimeInput(tk.Frame):
         self._handleChange(self._hour, self._minute)
 
     def _createContent(self):
-        hourInput = HourInput(self, hour=self._hour, handleChange=self._setHour,
-                              config=self._config)
-        hourInput.pack(side=tk.LEFT)
+        self._hourInput = HourInput(self, hour=self._hour, handleChange=self._setHour,
+                                    config=self._config)
+        self._hourInput.pack(side=tk.LEFT)
 
         font = itemgetter('font')(self._config)
         colon = tk.Label(self, text=':', font=font)
         colon.pack(side=tk.LEFT)
 
-        minuteInput = MinuteInput(
+        self._minuteInput = MinuteInput(
             self, minute=self._minute, handleChange=self._setMinute, config=self._config)
-        minuteInput.pack(side=tk.LEFT)
+        self._minuteInput.pack(side=tk.LEFT)
 
 
-class SubmitButton(tk.Frame):
-    def __init__(self, root, handleClick, config=DEFAULT_CONFIG):
+class StatefulButton(tk.Frame):
+    def __init__(self, root, label, handleClick, config=DEFAULT_CONFIG):
         super().__init__(root)
         self._root = root
+        self._label = label
         self._handleClick = handleClick
         self._config = {**DEFAULT_CONFIG, **config}
         self._createContent()
@@ -215,7 +237,7 @@ class SubmitButton(tk.Frame):
     def _createContent(self):
         font = itemgetter('font')(self._config)
         self._button = tk.Button(
-            self, text="Set", font=font, command=self._handleClick)
+            self, text=self._label, font=font, command=self._handleClick)
         self._button.pack()
 
     def enable(self):
@@ -230,36 +252,60 @@ class TimeForm(tk.Frame):
         super().__init__(root)
 
         self._root = root
+        self._hourPrev = hour
+        self._minutePrev = minute
         self._hour = hour
         self._minute = minute
         self._submitButton = None
         self._handleChange = handleChange
         self._createContent()
-        self._updateSubmitState()
+        self._updateButtonState()
 
     def _onTimeChange(self, hourStr, minuteStr):
         self._hour = None if hourStr == '' else getHour(hourStr)
         self._minute = None if minuteStr == '' else getMinute(minuteStr)
-        self._updateSubmitState()
+        self._updateButtonState()
 
-    def _updateSubmitState(self):
+    def _updateButtonState(self):
+        buttonsReady = self._submitButton and self._resetButton
         valdated = self._hour != None and self._minute != None
-        if self._submitButton:
-            if valdated:
+        changed = self._hour != self._hourPrev or self._minute != self._minutePrev
+        if buttonsReady:
+            if valdated and changed:
                 self._submitButton.enable()
+                self._resetButton.enable()
             else:
                 self._submitButton.disable()
+                self._resetButton.disable()
 
     def _setTime(self):
+        self._hourPrev = self._hour
+        self._minutePrev = self._minute
         self._handleChange(self._hour, self._minute)
+        self._updateButtonState()
+
+    def _resetTime(self):
+        self._hour = self._hourPrev
+        self._minute = self._minutePrev
+        self._timeInput.setTime(self._hourPrev, self._minutePrev)
+        self._updateButtonState()
 
     def _createContent(self):
-        timeInput = TimeInput(
+        self._timeInput = TimeInput(
             self, hour=self._hour, minute=self._minute, handleChange=self._onTimeChange)
-        timeInput.pack(side=tk.LEFT)
-        self._submitButton = SubmitButton(self, handleClick=self._setTime)
-        self._submitButton.pack(side=tk.RIGHT)
-        self._updateSubmitState()
+        self._timeInput.pack(side=tk.TOP)
+
+        buttonFrame = tk.Frame(self)
+        buttonFrame.pack(side=tk.BOTTOM)
+
+        self._submitButton = StatefulButton(
+            buttonFrame, label="Set", handleClick=self._setTime)
+        self._submitButton.pack(side=tk.LEFT)
+
+        self._resetButton = StatefulButton(
+            buttonFrame, label="Reset", handleClick=self._resetTime)
+        self._resetButton.pack(side=tk.RIGHT)
+        self._updateButtonState()
 
 
 class MainWindow(tk.Frame):
