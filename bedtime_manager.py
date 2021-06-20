@@ -26,7 +26,7 @@ class BedtimeManager:
 
         self._sleeping = True
         self._cancelStopSleepingJob = snooze(
-            4*60*60*1e3, self._showFullscreenWindow, self._stopSleeping)
+            4*60*60, self._showFullscreenWindow, self._stopSleeping)
 
     def _stopSleeping(self):
         if self._cancelStopSleepingJob != None:
